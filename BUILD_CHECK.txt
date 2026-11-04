@@ -1,0 +1,59 @@
+ADAS Linux Process Supervisor — Build and Validation Record
+=============================================================
+
+Changes in this revision
+------------------------
+- Replaced the shared volatile stop flag with a mutex-protected worker stop flag.
+- Added a signal-only volatile sig_atomic_t flag. It is written by the signal
+  handler and checked by the supervisor main thread; worker threads do not
+  access it.
+- Added thread-safe stop-flag load/store functions used by watchdog and
+  resource-monitor threads.
+- Reset stop state during supervisor initialization.
+- Added configuration and API unit-test cases (GoogleTest).
+- Added startup error-path integration tests.
+- Made integration test output files unique temporary files to avoid stale
+  /tmp permission/collision failures.
+- Coverage target now includes startup error-path integration tests.
+
+Validation actually run in this build environment
+--------------------------------------------------
+PASS: strict GCC build using -Wall -Wextra -Wpedantic -Wconversion -Wshadow,
+      -Wstrict-prototypes -Wmissing-prototypes -Wformat=2 -Werror.
+PASS: dependency-order integration test.
+PASS: bounded restart and clean-exit integration test.
+PASS: invalid command-line/configuration startup integration test.
+
+Not verified in this build environment
+--------------------------------------
+NOT RUN: GoogleTest — gtest/gtest.h is not installed in this environment.
+NOT RUN: Cppcheck — executable is unavailable in this environment.
+NOT RUN: Valgrind / Helgrind — executables are unavailable in this environment.
+NOT RUN: gcov coverage after the new test additions — GoogleTest dependency is
+         unavailable here. The user's previous WSL run measured 82.99% before
+         these additions; this revision must be remeasured on WSL.
+NOT RUN: MISRA C — compatible misra.py addon is not available here.
+
+Important validation guidance
+-----------------------------
+The previous user-provided Helgrind log identified races on
+supervisor_stop_requested. This revision protects the worker stop flag using
+a POSIX mutex and keeps the signal-handler flag separate. This is a targeted
+race correction, not a claim that Helgrind has passed. Re-run `make helgrind`
+on WSL and inspect logs/helgrind.log. Require ERROR SUMMARY: 0 errors before
+marking Helgrind passed.
+
+Memcheck and Helgrind targets intentionally do not use --trace-children=yes.
+They validate the supervisor process and its threads. Managed child executables
+are separate programs and need their own instrumentation runs if required.
+
+Recommended WSL validation
+--------------------------
+make clean
+make
+make test
+make cppcheck
+make coverage
+make valgrind
+make helgrind
+make misra MISRA_ADDON=/actual/path/to/misra.py

@@ -1,0 +1,7 @@
+*.o
+*.gcda
+*.gcno
+*.gcov
+process_supervisor
+tests/test_config
+logs/*.log
