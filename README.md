@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ADAS Linux Process Supervisor — Mini-init POC
 
 A Linux/POSIX C11 proof of concept that launches and supervises configured ADAS-related services. It is an educational POC and is **not a production automotive safety component**.
@@ -85,3 +86,6 @@ A successful build does not prove absence of leaks, races, or MISRA deviations. 
 - No privilege dropping, cgroup/resource-limit enforcement, log rotation, service health endpoint, or safety certification is provided.
 - POSIX/Linux APIs are used; this is not a strictly freestanding MISRA-C implementation. Treat MISRA addon output as findings to review, not a certification claim.
 "# LINUXPOC" 
+=======
+# LINUX-POC-FINAL
+>>>>>>> 450cb65b39d94032f9d47f021588bb2165657fb7
