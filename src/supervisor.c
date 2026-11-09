@@ -1,12 +1,13 @@
 #define _POSIX_C_SOURCE 200809L
 #include "supervisor.h"
 #include "logger.h"
-
+#include <time.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <stdbool.h>
 #include <unistd.h>
 
 static pthread_mutex_t stop_flag_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -228,46 +229,82 @@ static void handle_child_exit(process_t *process, int status)
 void supervisor_run(supervisor_t *supervisor)
 {
     time_t last_dashboard = 0;
+    const char *disable_heartbeat;
 
     if (supervisor == NULL) {
         return;
     }
 
+    disable_heartbeat =
+        getenv("SUPERVISOR_TEST_DISABLE_HEARTBEAT");
+
     while ((supervisor->shutting_down == false) &&
            (supervisor_signal_received == 0) &&
            (supervisor_stop_requested_load() == 0)) {
+
         process_t *current;
         time_t now = time(NULL);
 
-        if (supervisor->heartbeat_fd >= 0) {
+        if ((supervisor->heartbeat_fd >= 0) &&
+            ((disable_heartbeat == NULL) ||
+             (strcmp(disable_heartbeat, "1") != 0))) {
+
             const unsigned char heartbeat = 0xA5U;
-            ssize_t bytes_written = write(supervisor->heartbeat_fd, &heartbeat,
-                                          sizeof(heartbeat));
-            if ((bytes_written < 0) && (errno != EINTR) &&
-                (errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-                logger_write("ERROR", "Supervisor heartbeat write failed: %s",
-                             strerror(errno));
+
+            ssize_t bytes_written = write(
+                supervisor->heartbeat_fd,
+                &heartbeat,
+                sizeof(heartbeat)
+            );
+
+            if ((bytes_written < 0) &&
+                (errno != EINTR) &&
+                (errno != EAGAIN) &&
+                (errno != EWOULDBLOCK)) {
+
+                logger_write(
+                    "ERROR",
+                    "Supervisor heartbeat write failed: %s",
+                    strerror(errno)
+                );
+
                 supervisor_stop_requested_store(1);
             }
         }
 
         (void)pthread_mutex_lock(&supervisor->lock);
+
         current = supervisor->head;
+
         while (current != NULL) {
+
             if (current->pid > 0) {
                 int status = 0;
-                pid_t result = waitpid(current->pid, &status, WNOHANG);
+
+                pid_t result = waitpid(
+                    current->pid,
+                    &status,
+                    WNOHANG
+                );
+
                 if (result == current->pid) {
                     handle_child_exit(current, status);
+
                 } else if ((result < 0) && (errno != EINTR)) {
-                    logger_write("ERROR", "waitpid failed for %s: %s",
-                                 current->name, strerror(errno));
+
+                    logger_write(
+                        "ERROR",
+                        "waitpid failed for %s: %s",
+                        current->name,
+                        strerror(errno)
+                    );
                 }
             }
 
             if ((current->state == PROCESS_WAITING_DEPENDENCY) &&
                 (supervisor_dependencies_ready(supervisor, current) != 0) &&
                 (supervisor->shutting_down == false)) {
+
                 if (start_process(current) != 0) {
                     current->state = PROCESS_PERMANENTLY_FAILED;
                 }
@@ -277,33 +314,41 @@ void supervisor_run(supervisor_t *supervisor)
                 (now >= current->next_restart) &&
                 (supervisor_dependencies_ready(supervisor, current) != 0) &&
                 (supervisor->shutting_down == false)) {
+
                 if (start_process(current) != 0) {
+
                     if (current->restart_count >= current->max_restarts) {
                         current->state = PROCESS_PERMANENTLY_FAILED;
                     } else {
                         current->restart_count++;
-                        current->next_restart = now +
-                            (time_t)current->restart_delay;
+
+                        current->next_restart =
+                            now + (time_t)current->restart_delay;
                     }
                 }
             }
+
             current = current->next;
         }
+
         (void)pthread_mutex_unlock(&supervisor->lock);
 
         if ((now - last_dashboard) >= 5) {
             supervisor_print_status(supervisor);
             last_dashboard = now;
         }
+
         (void)sleep(1U);
     }
+
     supervisor_stop_requested_store(1);
 }
-
 void supervisor_mark_shutdown(supervisor_t *supervisor)
 {
     if (supervisor != NULL) {
+        (void)pthread_mutex_lock(&supervisor->lock);
         supervisor->shutting_down = true;
+        (void)pthread_mutex_unlock(&supervisor->lock);
     }
 }
 

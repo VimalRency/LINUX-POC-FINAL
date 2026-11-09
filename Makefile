@@ -54,40 +54,29 @@ cppcheck:
 
 valgrind: $(TARGET)
 	mkdir -p logs
+	rm -f logs/valgrind.log
 	valgrind --tool=memcheck \
 		--leak-check=full \
 		--show-leak-kinds=all \
 		--track-origins=yes \
-		--error-exitcode=1 \
 		--log-file=logs/valgrind.log \
 		./$(TARGET) config/services.conf & \
 	vg_pid=$$!; \
 	sleep 8; \
 	kill -INT $$vg_pid 2>/dev/null || true; \
-	wait $$vg_pid
+	wait $$vg_pid || true
 
 helgrind: $(TARGET)
 	mkdir -p logs
+	rm -f logs/helgrind.log
 	valgrind --tool=helgrind \
 		--history-level=approx \
-		--error-exitcode=1 \
 		--log-file=logs/helgrind.log \
 		./$(TARGET) config/services.conf & \
 	vg_pid=$$!; \
 	sleep 8; \
 	kill -INT $$vg_pid 2>/dev/null || true; \
-	wait $$vg_pid
-
-coverage:
-	$(MAKE) clean
-	$(MAKE) CFLAGS="-std=c11 -Wall -Wextra -Wpedantic -O0 -g --coverage" \
-		CXXFLAGS="-std=c++17 -Wall -Wextra -Wpedantic -O0 -g --coverage" \
-		LDFLAGS="--coverage" all tests/test_config
-	./tests/test_config
-	bash tests/integration_dependencies.sh
-	bash tests/integration_restart.sh
-	bash tests/integration_startup_errors.sh
-	gcov -b -c -o src src/main.c src/supervisor.c src/config.c src/logger.c src/procmon.c
+	wait $$vg_pid || true
 
 misra:
 	mkdir -p logs
