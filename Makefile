@@ -78,6 +78,17 @@ helgrind: $(TARGET)
 	kill -INT $$vg_pid 2>/dev/null || true; \
 	wait $$vg_pid || true
 
+coverage:
+	$(MAKE) clean
+	$(MAKE) CFLAGS="-std=c11 -Wall -Wextra -Wpedantic -O0 -g --coverage" \
+		CXXFLAGS="-std=c++17 -Wall -Wextra -Wpedantic -O0 -g --coverage" \
+		LDFLAGS="--coverage" all tests/test_config
+	./tests/test_config
+	bash tests/integration_dependencies.sh
+	bash tests/integration_restart.sh
+	bash tests/integration_startup_errors.sh
+	gcov -b -c -o src src/main.c src/supervisor.c src/config.c src/logger.c src/procmon.c
+
 misra:
 	mkdir -p logs
 	bash -o pipefail -c 'cppcheck \
